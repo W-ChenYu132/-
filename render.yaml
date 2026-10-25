@@ -1,0 +1,45 @@
+# Render 一键部署配置（免费套餐可用）
+# 用法：把本仓库推到 GitHub 后，在 Render 选择 "New + → Blueprint"，选中本仓库即可。
+services:
+  - type: web
+    name: homework-platform
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install --omit=dev
+    startCommand: node src/server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # 会话签名密钥，Render 会自动生成随机值
+      - key: SESSION_SECRET
+        generateValue: true
+      # 初始管理员账号（首次启动时创建）
+      - key: ADMIN_USERNAME
+        value: admin
+      # 部署时由你在 Render 控制台填写（推荐使用强密码）
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: 系统管理员
+      # 首次启动不创建演示学生/演示作业，需要演示数据时改成 1
+      - key: SEED_DEMO
+        value: "0"
+      # 允许学生自助注册；也可登录后在「系统设置」里改为关闭
+      - key: ALLOW_REGISTER
+        value: "1"
+      - key: MAX_UPLOAD_MB
+        value: "20"
+
+    # ---------------------------------------------------------------
+    # 重要：Render 免费实例的磁盘是临时的，重新部署/重启后 data 目录会重置。
+    # 想要数据永久保存，请升级到付费实例后取消下面 4 行注释（持久磁盘）。
+    # 不改也可以：在「系统设置 → 数据备份」随时下载 JSON 备份。
+    # ---------------------------------------------------------------
+    # disk:
+    #   name: homework-data
+    #   mountPath: /data
+    #   sizeGB: 1
+    # 并把上面的环境变量 DATA_DIR 设为 /data

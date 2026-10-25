@@ -1,0 +1,23 @@
+{
+  "name": "peixun-homework",
+  "version": "1.0.0",
+  "private": true,
+  "description": "类学习通作业平台：管理员发布作业/题目，学生提交答案，管理员审批打分",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node scripts/smoke-test.mjs",
+    "shots": "node scripts/screenshots.mjs",
+    "capture": "node scripts/capture-ui.mjs",
+    "docs": "node scripts/build-docs.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^2.5.0"
+  }
+}

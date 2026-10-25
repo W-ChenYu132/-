@@ -1,0 +1,11 @@
+node_modules/
+data/
+uploads/
+.env
+*.log
+.DS_Store
+server-test.log
+server-test.err.log
+
+# Word / Office 打开文件时产生的临时锁文件
+~$*

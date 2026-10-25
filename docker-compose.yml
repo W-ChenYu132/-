@@ -1,0 +1,22 @@
+services:
+  homework:
+    build: .
+    container_name: homework
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      # 请改成你自己的随机字符串（至少 32 位）
+      SESSION_SECRET: "please-change-this-to-a-random-32-chars-string"
+      ADMIN_USERNAME: admin
+      # 首次启动时创建的管理员密码，登录后请立即修改
+      ADMIN_PASSWORD: "admin123456"
+      ADMIN_NAME: "系统管理员"
+      SEED_DEMO: "0"
+      ALLOW_REGISTER: "1"
+      MAX_UPLOAD_MB: "20"
+      TZ: Asia/Shanghai
+    volumes:
+      # 数据（db.json + 上传附件）持久化到宿主机 ./data 目录
+      - ./data:/data
