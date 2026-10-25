@@ -71,8 +71,16 @@ app.use('/api', (_req, res) => {
 app.use(
   express.static(PUBLIC_DIR, {
     index: 'index.html',
-    maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0,
+    // 静态资源每次都要向服务器确认（带 ETag，未变更时返回 304），
+    // 避免手机/浏览器缓存旧版页面导致「新功能看不到」
+    maxAge: 0,
     etag: true,
+    lastModified: true,
+    setHeaders(res, filePath) {
+      if (/\.(html|js|css)$/i.test(filePath)) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
   }),
 );
 app.use('/uploads', express.static(paths.UPLOAD_DIR, { index: false, dotfiles: 'deny' }));
