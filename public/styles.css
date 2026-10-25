@@ -574,6 +574,24 @@ button {
   font-weight: 600;
 }
 
+.tb-title {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tb-user {
+  font-size: 13.5px;
+  color: var(--text-2);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tb-logout {
+  flex: 0 0 auto;
+}
+
 .topbar .tb-sub {
   font-size: 12.5px;
   color: var(--muted);
@@ -1331,6 +1349,11 @@ table.data td.actions {
     flex: 0 0 auto;
   }
 
+  /* 手机端顶部条已有姓名与「退出」按钮，隐藏原来的小人卡片，避免重复与错位 */
+  .sidebar-user {
+    display: none;
+  }
+
   .sidebar-user .su-meta {
     display: none;
   }
@@ -1339,6 +1362,50 @@ table.data td.actions {
     padding: 0 16px;
     height: 58px;
     position: static;
+  }
+
+  /* 手机端：把「退出登录」做成显眼的按钮，避免找不到 */
+  .topbar {
+    padding: 0 12px;
+    gap: 10px;
+  }
+
+  .topbar .tb-sub {
+    display: none;
+  }
+
+  .topbar h1 {
+    font-size: 15.5px;
+  }
+
+  .topbar-right {
+    gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  .topbar .role-chip {
+    display: none;
+  }
+
+  .tb-user {
+    max-width: 76px;
+    font-size: 12px;
+  }
+
+  .tb-logout {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    padding: 7px 15px;
+    border-radius: 9px;
+    box-shadow: 0 4px 12px rgba(43, 108, 246, 0.28);
+  }
+
+  .tb-logout:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    color: #fff;
   }
 
   .content-area {

@@ -566,6 +566,19 @@ const steps = [
       { label: '4', sel: 'table.data tbody tr:first-child a.btn' },
     ],
   },
+  {
+    name: 'student-mobile-logout',
+    user: 'student',
+    hash: '#/home',
+    viewportW: 430,
+    viewportH: 900,
+    legend: ['右上角「退出」按钮（手机端就是这里退出登录）', '「修改密码」在左侧菜单条里', '作业卡片'],
+    marks: [
+      { label: '1', sel: '.topbar [data-act="logout"]' },
+      { label: '2', sel: '.nav [data-act="open-password"]' },
+      { label: '3', sel: '.hw-card' },
+    ],
+  },
 ];
 
 /* ============================== 流程图 ============================== */
@@ -734,15 +747,16 @@ async function main() {
     await app.evaluate(NO_BLUR_CSS);
 
     // 部分页面（弹窗较高）需要临时加高视口，保证标注元素都在画面内
+    const vw = s.viewportW || W;
     const vh = s.viewportH || H;
-    if (vh !== H) {
+    if (vw !== W || vh !== H) {
       await app.send('Emulation.setDeviceMetricsOverride', {
-        width: W,
+        width: vw,
         height: vh,
         deviceScaleFactor: 1,
         mobile: false,
       });
-      await sleep(600);
+      await sleep(700);
     }
     await sleep(500);
 
@@ -762,10 +776,10 @@ async function main() {
 
     const rawPath = path.join(OUT, `_${s.name}-raw.png`);
     await app.shot(rawPath);
-    records.push({ name: s.name, rawPath, coords, legend: s.legend || [], h: vh });
+    records.push({ name: s.name, rawPath, coords, legend: s.legend || [], h: vh, w: vw });
     console.log(`  . ${s.name} 原始截图完成 (${coords.filter(Boolean).length}/${coords.length})`);
 
-    if (vh !== H) {
+    if (vw !== W || vh !== H) {
       await app.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
       await sleep(300);
     }
@@ -792,10 +806,11 @@ async function main() {
   const legends = {};
   for (const rec of records) {
     const rh = rec.h || H;
+    const rw = rec.w || W;
     const badges = rec.coords
       .filter(Boolean)
       .map((m) => {
-        const x = Math.min(Math.max(m.x - 4, 20), W - 20);
+        const x = Math.min(Math.max(m.x - 4, 20), rw - 20);
         const y = Math.min(Math.max(m.y - 4, 20), rh - 20);
         return `<div class="mark" style="left:${x}px;top:${y}px">${m.label}</div>`;
       })
@@ -803,8 +818,8 @@ async function main() {
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><style>
       html,body{margin:0;padding:0;background:#fff}
-      .wrap{position:relative;width:${W}px;height:${rh}px;overflow:hidden}
-      img{display:block;width:${W}px;height:${rh}px}
+      .wrap{position:relative;width:${rw}px;height:${rh}px;overflow:hidden}
+      img{display:block;width:${rw}px;height:${rh}px}
       .mark{position:absolute;width:28px;height:28px;border-radius:50%;background:#ff3b30;color:#fff;
         font:700 16px/33px "Segoe UI",Arial,sans-serif;text-align:center;
         border:2.5px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.45);
@@ -816,14 +831,14 @@ async function main() {
     const htmlPath = path.join(OUT, `_${rec.name}.html`);
     fs.writeFileSync(htmlPath, html, 'utf8');
     await ov.send('Emulation.setDeviceMetricsOverride', {
-      width: W,
+      width: rw,
       height: rh,
       deviceScaleFactor: 1,
       mobile: false,
     });
     await ov.send('Page.navigate', { url: `file:///${htmlPath.replace(/\\/g, '/')}` });
     await sleep(600);
-    await ov.shot(path.join(OUT, `${rec.name}.png`), { x: 0, y: 0, width: W, height: rh });
+    await ov.shot(path.join(OUT, `${rec.name}.png`), { x: 0, y: 0, width: rw, height: rh });
     fs.rmSync(htmlPath, { force: true });
     fs.rmSync(rec.rawPath, { force: true });
 

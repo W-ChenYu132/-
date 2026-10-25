@@ -304,8 +304,9 @@ function renderAuthPage() {
                     <input class="input" id="reg-username" name="username" placeholder="字母 / 数字，3-32 位" autocomplete="username" required />
                   </div>
                   <div class="field">
-                    <label for="reg-name">姓名</label>
-                    <input class="input" id="reg-name" name="name" placeholder="用于老师识别，如：张三" required />
+                    <label for="reg-name">姓名（学号 + 姓名）</label>
+                    <input class="input" id="reg-name" name="name" placeholder="如：2026001 张三" required />
+                    <div class="hint">请填写「学号 + 姓名」，方便老师识别与统计成绩</div>
                   </div>
                   <div class="field">
                     <label for="reg-password">密码</label>
@@ -394,12 +395,14 @@ function renderShell(route) {
 
       <div class="main">
         <header class="topbar">
-          <div>
+          <div class="tb-title">
             <h1>${esc(title)}</h1>
             ${subtitle ? `<div class="tb-sub">${esc(subtitle)}</div>` : ''}
           </div>
           <div class="topbar-right">
             <span class="role-chip ${key === 'student' ? '' : 'admin'}">${esc(roleText)}</span>
+            <span class="tb-user" title="${esc(user.name)}">${esc(user.name)}</span>
+            <button class="btn btn-ghost btn-sm tb-logout" data-act="logout" title="退出登录">退出</button>
           </div>
         </header>
         <main class="content-area" id="content">
@@ -1482,7 +1485,7 @@ function openBulkUserModal() {
       <div class="field">
         <label for="bulk-text">学生名单（每行一个）*</label>
         <textarea class="textarea" id="bulk-text" style="min-height:170px" placeholder="学号,姓名&#10;2024001,张三&#10;2024002,李四"></textarea>
-        <div class="hint">支持「学号,姓名」格式（英文/中文逗号或制表符分隔）。只写用户名时，姓名默认为用户名。</div>
+        <div class="hint">支持「学号,姓名」格式（英文/中文逗号或制表符分隔）。姓名建议填「学号 + 姓名」，例如 <code>2024001,2024001 张三</code>；只写用户名时姓名默认为用户名。</div>
       </div>
       <div class="field">
         <label for="bulk-password">统一初始密码</label>
