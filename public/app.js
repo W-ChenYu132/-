@@ -315,14 +315,18 @@ function renderAuthPage() {
                   ${
                     state.settings.selfClassSelect && (state.settings.classes || []).length
                       ? `<div class="field">
-                           <label for="reg-class">选择班级</label>
-                           <select class="select" id="reg-class">
-                             <option value="">暂不选择（登录后可再设置）</option>
+                           <label>选择班级（可多选，登录后也能改）</label>
+                           <div style="display:flex;flex-wrap:wrap;gap:8px 18px;padding:2px 0">
                              ${state.settings.classes
-                               .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
+                               .map(
+                                 (c) => `<label style="display:flex;align-items:center;gap:6px;font-size:13.5px;color:var(--text-2)">
+                                   <input type="checkbox" data-cls="reg" value="${c.id}" />
+                                   ${esc(c.name)}
+                                 </label>`,
+                               )
                                .join('')}
-                           </select>
-                           <div class="hint">选好班级后，才能看到该班级的作业</div>
+                           </div>
+                           <div class="hint">可以同时勾选多个班级；都不勾则只能看到面向全体学生的作业</div>
                          </div>`
                       : ''
                   }
@@ -1551,27 +1555,26 @@ async function openClassPickerModal() {
     toast('老师还没有创建班级，请稍后再试或联系老师', 'error');
     return;
   }
-  const current = (state.user.classIds || [])[0] || '';
+  const current = state.user.classIds || [];
 
   openModal({
-    title: '选择你的班级',
+    title: '选择你的班级（可多选）',
     body: `
-      <p class="hint" style="margin-bottom:14px">选择所在班级后，就能看到该班级老师发布的作业。</p>
+      <p class="hint" style="margin-bottom:14px">勾选你所在的班级（可以同时属于多个班级），就能看到这些班级老师发布的作业。</p>
       <div style="display:grid;gap:10px">
         ${classes
           .map(
             (c) => `
           <label class="file-item" style="cursor:pointer;padding:12px 14px">
-            <input type="radio" name="class-pick" value="${c.id}" ${current === c.id ? 'checked' : ''} style="margin:0" />
+            <input type="checkbox" name="class-pick" value="${c.id}" ${
+              current.includes(c.id) ? 'checked' : ''
+            } style="margin:0" />
             <span class="fi-name" style="font-size:14px">${esc(c.name)}</span>
           </label>`,
           )
           .join('')}
-        <label class="file-item" style="cursor:pointer;padding:12px 14px">
-          <input type="radio" name="class-pick" value="" ${current ? '' : 'checked'} style="margin:0" />
-          <span class="fi-name" style="font-size:14px;color:var(--muted)">暂不选择（只看面向全体学生的作业）</span>
-        </label>
-      </div>`,
+      </div>
+      <div class="hint" style="margin-top:12px">一个都不勾 = 只看面向全体学生的作业。</div>`,
     footer: `
       <button class="btn btn-ghost" data-act="close-modal">取消</button>
       <button class="btn btn-primary" data-act="save-class-pick">确定</button>`,
@@ -1726,13 +1729,15 @@ document.addEventListener('click', async (e) => {
         break;
 
       case 'save-class-pick': {
-        const picked = document.querySelector('input[name="class-pick"]:checked');
-        const classId = picked ? picked.value : '';
-        const res = await api('/auth/class', { method: 'POST', body: { classId: classId || null } });
+        const picked = Array.from(document.querySelectorAll('input[name="class-pick"]:checked')).map((el) => el.value);
+        const res = await api('/auth/class', { method: 'POST', body: { classIds: picked } });
         state.user = res.user;
         state.settings.selfClassSelect = true;
         closeModal();
-        toast(classId ? `已加入班级：${(res.user.classNames || []).join('、')}` : '已取消班级设置', 'success');
+        toast(
+          picked.length ? `已加入班级：${(res.user.classNames || []).join('、')}` : '已取消班级设置',
+          'success',
+        );
         render();
         break;
       }
@@ -2003,13 +2008,12 @@ document.addEventListener('submit', async (e) => {
       const username = $('#reg-username').value.trim();
       const name = $('#reg-name').value.trim();
       const password = $('#reg-password').value;
-      const classEl = $('#reg-class');
-      const classId = classEl ? classEl.value || null : null;
+      const classIds = readClassChecks('reg');
       if (btn) btn.disabled = true;
-      const res = await api('/auth/register', { method: 'POST', body: { username, name, password, classId } });
+      const res = await api('/auth/register', { method: 'POST', body: { username, name, password, classIds } });
       state.user = res.user;
       state.authTab = 'login';
-      toast(classId ? '注册成功，已加入班级' : '注册成功，已自动登录', 'success');
+      toast(classIds.length ? '注册成功，已加入班级' : '注册成功，已自动登录', 'success');
       location.hash = '#/home';
       await render();
     } else if (kind === 'submit-assignment') {

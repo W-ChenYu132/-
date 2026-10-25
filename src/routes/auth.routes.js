@@ -74,12 +74,17 @@ router.post(
     const exists = data().users.some((u) => u.username.toLowerCase() === name.toLowerCase());
     if (exists) throw badRequest('该用户名已被占用');
 
-    // 允许学生自选班级时，注册可带上班级
+    // 允许学生自选班级时，注册可带上班级（支持多选）
     let classIds = [];
-    if (data().settings?.selfClassSelect === true && req.body?.classId) {
-      const classId = String(req.body.classId);
-      if (!data().classes.some((c) => c.id === classId)) throw badRequest('所选班级不存在');
-      classIds = [classId];
+    if (data().settings?.selfClassSelect === true) {
+      const raw = req.body?.classIds ?? (req.body?.classId ? [req.body.classId] : []);
+      if (Array.isArray(raw)) {
+        for (const item of raw.slice(0, 20)) {
+          const classId = String(item);
+          if (!data().classes.some((c) => c.id === classId)) throw badRequest('所选班级不存在');
+          if (!classIds.includes(classId)) classIds.push(classId);
+        }
+      }
     }
 
     const user = await mutate((db) => {
@@ -121,7 +126,7 @@ router.post(
   }),
 );
 
-/** 学生自己选择 / 切换班级（需管理员开启「允许学生自选班级」） */
+/** 学生自己选择 / 切换班级（支持多选，需管理员开启「允许学生自选班级」） */
 router.post(
   '/class',
   requireAuth,
@@ -130,13 +135,19 @@ router.post(
     if (data().settings?.selfClassSelect !== true) {
       throw badRequest('管理员未开启「允许学生自选班级」，请联系老师分配班级');
     }
-    const raw = req.body?.classId;
-    let classIds = [];
-    if (raw) {
-      const classId = String(raw);
+
+    // 兼容两种入参：classIds: [] 或 classId: ''
+    const raw = req.body?.classIds ?? (req.body?.classId ? [req.body.classId] : []);
+    if (!Array.isArray(raw)) throw badRequest('班级参数格式不正确');
+    if (raw.length > 20) throw badRequest('最多选择 20 个班级');
+
+    const classIds = [];
+    for (const item of raw) {
+      const classId = String(item);
       if (!data().classes.some((c) => c.id === classId)) throw badRequest('所选班级不存在');
-      classIds = [classId];
+      if (!classIds.includes(classId)) classIds.push(classId);
     }
+
     const updated = await mutate((db) => {
       const u = db.users.find((x) => x.id === req.user.id);
       u.classIds = classIds;

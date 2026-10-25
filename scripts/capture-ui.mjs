@@ -265,12 +265,12 @@ const steps = [
     hash: '#/login',
     before: `document.querySelector('[data-act="auth-tab"][data-tab="register"]').click()`,
     wait: 800,
-    legend: ['用户名（建议用学号）', '姓名', '密码', '选择班级（管理员开启自选班级时才有）', '注册并登录'],
+    legend: ['用户名（建议用学号）', '姓名（填「学号 + 姓名」）', '密码', '选择班级（可多选）', '注册并登录'],
     marks: [
       { label: '1', sel: '#reg-username' },
       { label: '2', sel: '#reg-name' },
       { label: '3', sel: '#reg-password' },
-      { label: '4', sel: '#reg-class' },
+      { label: '4', sel: 'input[data-cls="reg"]' },
       { label: '5', sel: 'form[data-form="register"] button[type="submit"]' },
     ],
   },
@@ -501,11 +501,10 @@ const steps = [
     hash: '#/home',
     before: `document.querySelector('[data-act="pick-class"]').click()`,
     wait: 1200,
-    legend: ['选择一个班级', '暂不选择（只看面向全体学生的作业）', '确定'],
+    legend: ['勾选你所在的班级（可多选）', '确定'],
     marks: [
       { label: '1', sel: 'input[name="class-pick"]' },
-      { label: '2', sel: 'input[name="class-pick"][value=""]' },
-      { label: '3', sel: '[data-act="save-class-pick"]' },
+      { label: '2', sel: '[data-act="save-class-pick"]' },
     ],
   },
   {

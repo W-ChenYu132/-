@@ -351,29 +351,41 @@ async function main() {
 
   const regWithClass = await anon.req('/api/auth/register', {
     method: 'POST',
-    body: { username: `sc${Date.now()}`, name: '自选班级生', password: '123456', classId: classB.id },
+    body: { username: `sc${Date.now()}`, name: '选班生', password: '123456', classIds: [classB.id] },
   });
   check('注册时可选班级', regWithClass.status === 201 && regWithClass.data?.user?.classNames?.[0] === classB.name);
 
   const selfStudent = client('selfclass');
   await selfStudent.req('/api/auth/login', { method: 'POST', body: { username: regWithClass.data.user.username, password: '123456' } });
+
+  const multi = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classIds: [classA.id, classB.id] } });
+  check(
+    '学生可同时选择多个班级',
+    multi.status === 200 && (multi.data?.user?.classIds || []).length === 2,
+  );
+  check('多班级时名称都返回', (multi.data?.user?.classNames || []).length === 2);
+
+  const listMulti = await selfStudent.req('/api/assignments');
+  const visibleIds = (listMulti.data?.assignments || []).map((x) => x.id);
+  check('多班级学生能看到 A 班作业', visibleIds.includes(assignmentId));
+
   const switched = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
-  check('学生可自行切换班级', switched.status === 200 && switched.data?.user?.classNames?.[0] === classA.name);
+  check('兼容旧的单个 classId 入参', switched.status === 200 && (switched.data?.user?.classIds || []).length === 1);
 
   const listAfterSwitch = await selfStudent.req('/api/assignments');
   check('切换班级后能看到新班级的作业', (listAfterSwitch.data?.assignments || []).some((x) => x.id === assignmentId));
 
-  const badClass = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: 'not-exist' } });
+  const badClass = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classIds: ['not-exist'] } });
   check('选择不存在的班级被拒绝（400）', badClass.status === 400);
 
-  const teacherSetClass = await teacher.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
+  const teacherSetClass = await teacher.req('/api/auth/class', { method: 'POST', body: { classIds: [classA.id] } });
   check('老师不能设置班级（400）', teacherSetClass.status === 400);
 
-  const clearClass = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: null } });
+  const clearClass = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classIds: [] } });
   check('学生可取消班级选择', clearClass.status === 200 && (clearClass.data?.user?.classIds || []).length === 0);
 
   await admin.req('/api/settings', { method: 'PATCH', body: { selfClassSelect: false } });
-  const setAfterOff = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
+  const setAfterOff = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classIds: [classA.id] } });
   check('再次关闭后学生不能改班级（400）', setAfterOff.status === 400);
 
   section('收尾');
