@@ -261,6 +261,121 @@ async function main() {
   });
   check('导入的学生可登录且已分班', studentLogin.status === 200 && studentLogin.data?.user?.classNames?.length === 1);
 
+  section('参考答案与可见时机');
+  const mkAssignment = async (title, visibility) =>
+    admin.req('/api/assignments', {
+      method: 'POST',
+      body: {
+        title,
+        content: '请回答：1 + 1 等于多少？并说明理由。',
+        answer: '参考答案：2。理由：按自然数加法定义，1 的后继是 2。',
+        answerVisibility: visibility,
+        maxScore: 100,
+        classIds: [classA.id],
+        published: true,
+      },
+    });
+
+  const ansA = await mkAssignment(`答案-提交后可见-${Date.now()}`, 'afterSubmit');
+  const ansAId = ansA.data?.assignment?.id;
+  check('发布作业时可带参考答案', ansA.status === 201 && ansA.data?.assignment?.hasAnswer === true);
+  check('列表接口不泄露答案正文', ansA.data?.assignment?.answer === undefined);
+  const adminDetail = await admin.req(`/api/assignments/${ansAId}`);
+  check('老师/管理员可看到参考答案', (adminDetail.data?.assignment?.answer || '').includes('参考答案'));
+
+  const stuBeforeSubmit = await stuA.req(`/api/assignments/${ansAId}`);
+  check(
+    '学生提交前看不到答案（answer 为空）',
+    stuBeforeSubmit.status === 200 && !stuBeforeSubmit.data?.assignment?.answer,
+  );
+  check('学生提交前会看到「已锁定」提示', stuBeforeSubmit.data?.assignment?.answerLocked === true);
+
+  await stuA.req('/api/submissions', { method: 'POST', body: { assignmentId: ansAId, content: '1+1=2', files: [] } });
+  const stuAfterSubmit = await stuA.req(`/api/assignments/${ansAId}`);
+  check(
+    '学生提交后可看到参考答案',
+    (stuAfterSubmit.data?.assignment?.answer || '').includes('参考答案'),
+  );
+
+  const mineList = await stuA.req('/api/submissions/mine');
+  check('「我的提交」列表不含参考答案', JSON.stringify(mineList.data || {}).includes('参考答案：2') === false);
+
+  const mkReview = await mkAssignment(`答案-批阅后可见-${Date.now()}`, 'afterReview');
+  const mkReviewId = mkReview.data?.assignment?.id;
+  await stuA.req('/api/submissions', { method: 'POST', body: { assignmentId: mkReviewId, content: '回答：2', files: [] } });
+  const afterSubmit2 = await stuA.req(`/api/assignments/${mkReviewId}`);
+  check('「批阅后可见」：提交后仍看不到答案', !afterSubmit2.data?.assignment?.answer);
+  const pending2 = await admin.req('/api/submissions?status=pending');
+  const sub2 = (pending2.data?.submissions || []).find((s) => s.assignmentId === mkReviewId);
+  check('审批列表不返回答案正文（保持精简）', sub2?.assignment?.answer === undefined);
+  const sub2Detail = await admin.req(`/api/submissions/${sub2.id}`);
+  check(
+    '老师端批阅详情能拿到参考答案',
+    (sub2Detail.data?.submission?.assignment?.answer || '').includes('参考答案'),
+  );
+  await admin.req(`/api/submissions/${sub2.id}/review`, {
+    method: 'POST',
+    body: { action: 'approve', score: 100, feedback: '正确。' },
+  });
+  const afterReview = await stuA.req(`/api/assignments/${mkReviewId}`);
+  check('「批阅后可见」：批阅通过后学生可看答案', (afterReview.data?.assignment?.answer || '').includes('参考答案'));
+
+  const ansNever = await mkAssignment(`答案-不显示-${Date.now()}`, 'never');
+  const ansNeverId = ansNever.data?.assignment?.id;
+  await stuA.req('/api/submissions', { method: 'POST', body: { assignmentId: ansNeverId, content: '答案 2', files: [] } });
+  const neverView = await stuA.req(`/api/assignments/${ansNeverId}`);
+  check('「不向学生显示」：即使提交后学生也看不到', !neverView.data?.assignment?.answer);
+  check('「不向学生显示」时仍显示锁定提示', neverView.data?.assignment?.answerLocked === true);
+
+  const unknownVis = await mkAssignment(`答案-非法取值-${Date.now()}`, 'hacker-mode');
+  check('非法可见时机被修正为默认值', unknownVis.data?.assignment?.answerVisibility === 'afterSubmit');
+
+  await admin.req(`/api/assignments/${ansAId}`, { method: 'DELETE' });
+  await admin.req(`/api/assignments/${mkReviewId}`, { method: 'DELETE' });
+  await admin.req(`/api/assignments/${ansNeverId}`, { method: 'DELETE' });
+  await admin.req(`/api/assignments/${unknownVis.data?.assignment?.id}`, { method: 'DELETE' });
+
+  section('学生自选班级');
+  const pubOff = await anon.req('/api/settings/public');
+  check('默认不公开班级列表（自选班级默认关闭）', Array.isArray(pubOff.data?.classes) && pubOff.data.classes.length === 0);
+
+  const setOff = await stuA.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
+  check('未开启时学生不能自己改班级（400）', setOff.status === 400);
+
+  const enable = await admin.req('/api/settings', { method: 'PATCH', body: { selfClassSelect: true } });
+  check('管理员可开启「允许学生自选班级」', enable.status === 200 && enable.data?.settings?.selfClassSelect === true);
+
+  const pubOn = await anon.req('/api/settings/public');
+  check('开启后公开班级列表（仅 id 与名称）', Array.isArray(pubOn.data?.classes) && pubOn.data.classes.length >= 2);
+  check('公开的班级信息不含成员名单', pubOn.data.classes.every((c) => c.members === undefined));
+
+  const regWithClass = await anon.req('/api/auth/register', {
+    method: 'POST',
+    body: { username: `sc${Date.now()}`, name: '自选班级生', password: '123456', classId: classB.id },
+  });
+  check('注册时可选班级', regWithClass.status === 201 && regWithClass.data?.user?.classNames?.[0] === classB.name);
+
+  const selfStudent = client('selfclass');
+  await selfStudent.req('/api/auth/login', { method: 'POST', body: { username: regWithClass.data.user.username, password: '123456' } });
+  const switched = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
+  check('学生可自行切换班级', switched.status === 200 && switched.data?.user?.classNames?.[0] === classA.name);
+
+  const listAfterSwitch = await selfStudent.req('/api/assignments');
+  check('切换班级后能看到新班级的作业', (listAfterSwitch.data?.assignments || []).some((x) => x.id === assignmentId));
+
+  const badClass = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: 'not-exist' } });
+  check('选择不存在的班级被拒绝（400）', badClass.status === 400);
+
+  const teacherSetClass = await teacher.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
+  check('老师不能设置班级（400）', teacherSetClass.status === 400);
+
+  const clearClass = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: null } });
+  check('学生可取消班级选择', clearClass.status === 200 && (clearClass.data?.user?.classIds || []).length === 0);
+
+  await admin.req('/api/settings', { method: 'PATCH', body: { selfClassSelect: false } });
+  const setAfterOff = await selfStudent.req('/api/auth/class', { method: 'POST', body: { classId: classA.id } });
+  check('再次关闭后学生不能改班级（400）', setAfterOff.status === 400);
+
   section('收尾');
   await admin.req(`/api/classes/${createdClassId}`, { method: 'DELETE' });
   await admin.req(`/api/assignments/${assignmentId}`, { method: 'DELETE' });

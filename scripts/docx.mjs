@@ -713,6 +713,31 @@ export function buildDocx({ doc, outFile }) {
 
   const buf = makeZip(entries);
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
-  fs.writeFileSync(outFile, buf);
-  return { outFile, bytes: buf.length, images: images.length };
+
+  // 先写临时文件再替换，避免目标文件被 Word / WPS 打开时写坏原文件
+  const tmp = `${outFile}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, buf);
+
+  let lastErr = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      fs.renameSync(tmp, outFile);
+      return { outFile, bytes: buf.length, images: images.length };
+    } catch (err) {
+      lastErr = err;
+      if (!['EBUSY', 'EPERM', 'EACCES'].includes(err.code)) break;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200);
+    }
+  }
+
+  try {
+    fs.rmSync(tmp, { force: true });
+  } catch {
+    /* ignore */
+  }
+  const hint =
+    lastErr && ['EBUSY', 'EPERM', 'EACCES'].includes(lastErr.code)
+      ? '（该文件正在被 Word / WPS 打开，请先关闭它再重新生成）'
+      : '';
+  throw new Error(`无法写入 ${outFile}${hint}：${lastErr?.message || ''}`);
 }

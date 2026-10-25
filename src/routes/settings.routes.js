@@ -6,15 +6,25 @@ import { asyncHandler, badRequest } from '../util.js';
 
 const router = Router();
 
-/** 公开接口：登录页需要知道是否开放注册、站点名称 */
+/** 公开接口：登录页需要知道是否开放注册、站点名称、是否允许学生自选班级 */
 router.get(
   '/public',
   asyncHandler(async (_req, res) => {
-    const s = data().settings || {};
+    const d = data();
+    const s = d.settings || {};
+    const selfClassSelect = s.selfClassSelect === true;
     res.json({
       siteName: s.siteName || '云作业',
       registerEnabled: s.registerEnabled !== false,
       registerNote: s.registerNote || '',
+      selfClassSelect,
+      // 仅在允许自选班级时才公开班级名称（不含成员信息）
+      classes: selfClassSelect
+        ? d.classes
+            .slice()
+            .sort((x, y) => new Date(x.createdAt) - new Date(y.createdAt))
+            .map((c) => ({ id: c.id, name: c.name }))
+        : [],
     });
   }),
 );
@@ -36,6 +46,9 @@ router.patch(
     const patch = {};
     if (typeof req.body?.registerEnabled === 'boolean') {
       patch.registerEnabled = req.body.registerEnabled;
+    }
+    if (typeof req.body?.selfClassSelect === 'boolean') {
+      patch.selfClassSelect = req.body.selfClassSelect;
     }
     if (typeof req.body?.registerNote === 'string') {
       patch.registerNote = req.body.registerNote.slice(0, 200);

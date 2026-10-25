@@ -125,6 +125,8 @@ router.get(
       submission: submissionView(sub, {
         withStudent: req.user.role !== 'student',
         withAssignment: true,
+        // 参考答案只给老师/管理员，学生走作业详情接口（受可见时机控制）
+        includeAnswer: req.user.role !== 'student',
       }),
     });
   }),

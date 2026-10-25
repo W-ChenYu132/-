@@ -172,6 +172,9 @@ async function prepareDemoData() {
   if (!classes.length) throw new Error('没有班级数据，请删除 data/ 后用 SEED_DEMO=1 重启服务');
   const classA = classes[0];
 
+  // 打开「学生自选班级」，让注册页与班级选择弹窗有内容可截
+  await admin('/api/settings', { method: 'PATCH', body: { selfClassSelect: true } });
+
   const tail = String(Date.now()).slice(-3);
   await admin('/api/users/bulk', {
     method: 'POST',
@@ -257,6 +260,21 @@ const steps = [
     ],
   },
   {
+    name: 'step-register',
+    user: null,
+    hash: '#/login',
+    before: `document.querySelector('[data-act="auth-tab"][data-tab="register"]').click()`,
+    wait: 800,
+    legend: ['用户名（建议用学号）', '姓名', '密码', '选择班级（管理员开启自选班级时才有）', '注册并登录'],
+    marks: [
+      { label: '1', sel: '#reg-username' },
+      { label: '2', sel: '#reg-name' },
+      { label: '3', sel: '#reg-password' },
+      { label: '4', sel: '#reg-class' },
+      { label: '5', sel: 'form[data-form="register"] button[type="submit"]' },
+    ],
+  },
+  {
     name: 'admin-overview',
     user: 'admin',
     hash: '#/overview',
@@ -289,15 +307,18 @@ const steps = [
     hash: '#/manage',
     before: `document.querySelector('[data-act="new-assignment"]').click()`,
     wait: 1300,
-    legend: ['作业标题', '题目内容', '面向班级（不勾＝全体学生）', '截止时间', '满分', '题目附件', '发布按钮'],
+    viewportH: 1260,
+    legend: ['作业标题', '题目内容', '参考答案（可选）', '学生何时能看到参考答案', '面向班级（不勾＝全体学生）', '截止时间', '满分', '题目附件', '发布按钮'],
     marks: [
       { label: '1', sel: '#hw-title' },
       { label: '2', sel: '#hw-content' },
-      { label: '3', sel: 'input[data-cls="cls"]' },
-      { label: '4', sel: '#hw-deadline' },
-      { label: '5', sel: '#hw-maxscore' },
-      { label: '6', sel: '#upload-zone' },
-      { label: '7', sel: '[data-act="save-assignment"]' },
+      { label: '3', sel: '#hw-answer' },
+      { label: '4', sel: '#hw-answer-vis' },
+      { label: '5', sel: 'input[data-cls="cls"]' },
+      { label: '6', sel: '#hw-deadline' },
+      { label: '7', sel: '#hw-maxscore' },
+      { label: '8', sel: '#upload-zone' },
+      { label: '9', sel: '[data-act="save-assignment"]' },
     ],
   },
   {
@@ -309,6 +330,7 @@ const steps = [
       return new Promise((r) => setTimeout(() => {
         document.querySelector('#hw-title').value = '第 3 次作业：一元二次方程练习';
         document.querySelector('#hw-content').value = '请完成课本 P42 习题 1~6，要求：\\n\\n1. 写出完整的解题步骤；\\n2. 拍照或整理成 Word 上传；\\n3. 有疑问的题目可以一并写下来。';
+        document.querySelector('#hw-answer').value = '参考答案：\\n1. x₁ = 2, x₂ = -3\\n2. 判别式 Δ = 25 > 0，有两个不等实根\\n3. 解题步骤见课本 P40 例题 2\\n\\n评分要点：步骤完整 60 分，计算正确 30 分，书写规范 10 分。';
         const boxes = document.querySelectorAll('input[data-cls="cls"]');
         if (boxes[0]) boxes[0].checked = true;
         document.querySelector('#hw-deadline').value = '2026-11-08T22:00';
@@ -316,12 +338,13 @@ const steps = [
       }, 1000));
     })()`,
     awaitBefore: true,
-    legend: ['填写标题', '粘贴题目要求（换行会被保留）', '勾选目标班级', '设置截止时间', '点发布作业'],
+    viewportH: 1260,
+    legend: ['填写标题', '粘贴题目要求（换行会被保留）', '填写参考答案', '选择学生可见时机', '点发布作业'],
     marks: [
       { label: '1', sel: '#hw-title' },
       { label: '2', sel: '#hw-content' },
-      { label: '3', sel: 'input[data-cls="cls"]' },
-      { label: '4', sel: '#hw-deadline' },
+      { label: '3', sel: '#hw-answer' },
+      { label: '4', sel: '#hw-answer-vis' },
       { label: '5', sel: '[data-act="save-assignment"]' },
     ],
   },
@@ -343,13 +366,15 @@ const steps = [
     hash: '#/reviews',
     before: `document.querySelector('[data-act="review"]').click()`,
     wait: 1500,
-    legend: ['学生作答全文', '分数输入框', '评语输入框', '通过并保存', '驳回'],
+    viewportH: 1260,
+    legend: ['学生作答全文', '参考答案（仅老师可见）', '分数输入框', '评语输入框', '通过并保存', '驳回'],
     marks: [
       { label: '1', sel: '.modal-body .prose' },
-      { label: '2', sel: '#review-score' },
-      { label: '3', sel: '#review-feedback' },
-      { label: '4', sel: '[data-act="do-review"][data-action="approve"]' },
-      { label: '5', sel: '[data-act="do-review"][data-action="reject"]' },
+      { label: '2', sel: '#review-answer' },
+      { label: '3', sel: '#review-score' },
+      { label: '4', sel: '#review-feedback' },
+      { label: '5', sel: '[data-act="do-review"][data-action="approve"]' },
+      { label: '6', sel: '[data-act="do-review"][data-action="reject"]' },
     ],
   },
   {
@@ -433,13 +458,14 @@ const steps = [
     name: 'admin-settings',
     user: 'admin',
     hash: '#/settings',
-    legend: ['站点名称', '自助注册开关', '注册页提示语', '保存设置', '下载数据备份'],
+    legend: ['站点名称', '开放学生自助注册', '允许学生自选班级', '注册页提示语', '保存设置', '下载数据备份'],
     marks: [
       { label: '1', sel: '#set-site' },
       { label: '2', sel: '#set-register' },
-      { label: '3', sel: '#set-register-note' },
-      { label: '4', sel: '[data-act="save-settings"]' },
-      { label: '5', sel: 'a[href="/api/settings/backup"]' },
+      { label: '3', sel: '#set-selfclass' },
+      { label: '4', sel: '#set-register-note' },
+      { label: '5', sel: '[data-act="save-settings"]' },
+      { label: '6', sel: 'a[href="/api/settings/backup"]' },
     ],
   },
   {
@@ -460,12 +486,26 @@ const steps = [
     name: 'student-home',
     user: 'student',
     hash: '#/home',
-    legend: ['待完成作业数', '状态筛选标签', '作业卡片（点开看题目）', '当前状态'],
+    legend: ['待完成作业数', '状态筛选标签', '切换班级按钮（管理员开启自选班级时才有）', '作业卡片（点开看题目）', '当前状态'],
     marks: [
       { label: '1', sel: '.stat-grid .stat-card:nth-child(1)' },
       { label: '2', sel: '[data-act="home-filter"][data-filter="all"]' },
-      { label: '3', sel: '.hw-card' },
-      { label: '4', sel: '.hw-card .badge' },
+      { label: '3', sel: '[data-act="pick-class"]' },
+      { label: '4', sel: '.hw-card' },
+      { label: '5', sel: '.hw-card .badge' },
+    ],
+  },
+  {
+    name: 'student-class-picker',
+    user: 'student',
+    hash: '#/home',
+    before: `document.querySelector('[data-act="pick-class"]').click()`,
+    wait: 1200,
+    legend: ['选择一个班级', '暂不选择（只看面向全体学生的作业）', '确定'],
+    marks: [
+      { label: '1', sel: 'input[name="class-pick"]' },
+      { label: '2', sel: 'input[name="class-pick"][value=""]' },
+      { label: '3', sel: '[data-act="save-class-pick"]' },
     ],
   },
   {
@@ -482,12 +522,14 @@ const steps = [
     })()`,
     awaitBefore: true,
     wait: 1700,
-    legend: ['当前状态', '作业要求（截止时间／满分等）', '我的作答与批阅结果', '得分'],
+    viewportH: 1320,
+    legend: ['当前状态', '作业要求（截止时间／满分等）', '我的作答与批阅结果', '学生看到的参考答案', '得分'],
     marks: [
       { label: '1', sel: '.card-head .badge' },
       { label: '2', sel: '.kv' },
       { label: '3', sel: '.review-result' },
-      { label: '4', sel: '.review-result .rr-score' },
+      { label: '4', sel: '#answer-card' },
+      { label: '5', sel: '.review-result .rr-score' },
     ],
   },
   {
@@ -690,6 +732,18 @@ async function main() {
       await sleep(s.wait || 900);
     }
     await app.evaluate(NO_BLUR_CSS);
+
+    // 部分页面（弹窗较高）需要临时加高视口，保证标注元素都在画面内
+    const vh = s.viewportH || H;
+    if (vh !== H) {
+      await app.send('Emulation.setDeviceMetricsOverride', {
+        width: W,
+        height: vh,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await sleep(600);
+    }
     await sleep(500);
 
     const coords = await app.evaluate(`(() => {
@@ -704,12 +758,17 @@ async function main() {
     })()`);
 
     const missing = (s.marks || []).filter((m, i) => !coords[i]).map((m) => m.sel);
-    if (missing.length) console.log(`    ! ${s.name} 未找到: ${missing.join(', ')}`);
+    if (missing.length) console.log(`    ! ${s.name} 未找到或不在可视区: ${missing.join(', ')}`);
 
     const rawPath = path.join(OUT, `_${s.name}-raw.png`);
     await app.shot(rawPath);
-    records.push({ name: s.name, rawPath, coords, legend: s.legend || [] });
+    records.push({ name: s.name, rawPath, coords, legend: s.legend || [], h: vh });
     console.log(`  . ${s.name} 原始截图完成 (${coords.filter(Boolean).length}/${coords.length})`);
+
+    if (vh !== H) {
+      await app.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
+      await sleep(300);
+    }
 
     await app.evaluate(
       `(() => { const c = document.querySelector('[data-act="close-modal"]'); if (c) c.click(); return true; })()`,
@@ -732,19 +791,20 @@ async function main() {
   console.log('\n叠加编号…');
   const legends = {};
   for (const rec of records) {
+    const rh = rec.h || H;
     const badges = rec.coords
       .filter(Boolean)
       .map((m) => {
         const x = Math.min(Math.max(m.x - 4, 20), W - 20);
-        const y = Math.min(Math.max(m.y - 4, 20), H - 20);
+        const y = Math.min(Math.max(m.y - 4, 20), rh - 20);
         return `<div class="mark" style="left:${x}px;top:${y}px">${m.label}</div>`;
       })
       .join('');
 
     const html = `<!doctype html><html><head><meta charset="utf-8"><style>
       html,body{margin:0;padding:0;background:#fff}
-      .wrap{position:relative;width:${W}px;height:${H}px;overflow:hidden}
-      img{display:block;width:${W}px;height:${H}px}
+      .wrap{position:relative;width:${W}px;height:${rh}px;overflow:hidden}
+      img{display:block;width:${W}px;height:${rh}px}
       .mark{position:absolute;width:28px;height:28px;border-radius:50%;background:#ff3b30;color:#fff;
         font:700 16px/33px "Segoe UI",Arial,sans-serif;text-align:center;
         border:2.5px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.45);
@@ -755,9 +815,15 @@ async function main() {
 
     const htmlPath = path.join(OUT, `_${rec.name}.html`);
     fs.writeFileSync(htmlPath, html, 'utf8');
+    await ov.send('Emulation.setDeviceMetricsOverride', {
+      width: W,
+      height: rh,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
     await ov.send('Page.navigate', { url: `file:///${htmlPath.replace(/\\/g, '/')}` });
     await sleep(600);
-    await ov.shot(path.join(OUT, `${rec.name}.png`), { x: 0, y: 0, width: W, height: H });
+    await ov.shot(path.join(OUT, `${rec.name}.png`), { x: 0, y: 0, width: W, height: rh });
     fs.rmSync(htmlPath, { force: true });
     fs.rmSync(rec.rawPath, { force: true });
 

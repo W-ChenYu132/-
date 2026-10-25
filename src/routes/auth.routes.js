@@ -74,6 +74,14 @@ router.post(
     const exists = data().users.some((u) => u.username.toLowerCase() === name.toLowerCase());
     if (exists) throw badRequest('该用户名已被占用');
 
+    // 允许学生自选班级时，注册可带上班级
+    let classIds = [];
+    if (data().settings?.selfClassSelect === true && req.body?.classId) {
+      const classId = String(req.body.classId);
+      if (!data().classes.some((c) => c.id === classId)) throw badRequest('所选班级不存在');
+      classIds = [classId];
+    }
+
     const user = await mutate((db) => {
       const u = {
         id: newId(),
@@ -81,7 +89,7 @@ router.post(
         name: displayName,
         password: hashPassword(pass),
         role: 'student',
-        classIds: [],
+        classIds,
         active: true,
         createdAt: now(),
         updatedAt: now(),
@@ -110,6 +118,32 @@ router.post(
       }
     });
     res.json({ ok: true });
+  }),
+);
+
+/** 学生自己选择 / 切换班级（需管理员开启「允许学生自选班级」） */
+router.post(
+  '/class',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== 'student') throw badRequest('只有学生账号可以设置班级');
+    if (data().settings?.selfClassSelect !== true) {
+      throw badRequest('管理员未开启「允许学生自选班级」，请联系老师分配班级');
+    }
+    const raw = req.body?.classId;
+    let classIds = [];
+    if (raw) {
+      const classId = String(raw);
+      if (!data().classes.some((c) => c.id === classId)) throw badRequest('所选班级不存在');
+      classIds = [classId];
+    }
+    const updated = await mutate((db) => {
+      const u = db.users.find((x) => x.id === req.user.id);
+      u.classIds = classIds;
+      u.updatedAt = now();
+      return u;
+    });
+    res.json({ user: publicUser(updated, data().classes) });
   }),
 );
 

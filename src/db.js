@@ -19,6 +19,8 @@ const emptyDb = () => ({
     siteName: '云作业',
     registerEnabled: true,
     registerNote: '',
+    // 允许学生注册时／登录后自己选择班级（默认关闭，由管理员在系统设置里开启）
+    selfClassSelect: false,
   },
 });
 

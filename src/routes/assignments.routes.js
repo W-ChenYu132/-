@@ -18,6 +18,9 @@ import {
 
 const router = Router();
 
+/** 参考答案对学生可见的时机 */
+export const ANSWER_VISIBILITY = ['afterSubmit', 'afterReview', 'afterDeadline', 'never'];
+
 /** 学生是否属于作业目标班级（classIds 为空表示面向全体学生） */
 export function targetsStudent(assignment, student) {
   const target = assignment.classIds || [];
@@ -67,6 +70,13 @@ function readPayload(body, { partial = false } = {}) {
   if (!partial || has('title')) out.title = text(body?.title, { name: '作业标题', min: 2, max: 120 });
   if (!partial || has('content')) {
     out.content = text(body?.content, { name: '题目内容', min: 2, max: 20000 });
+  }
+  if (!partial || has('answer')) {
+    out.answer = text(body?.answer, { name: '参考答案', min: 0, max: 20000, required: false });
+  }
+  if (!partial || has('answerVisibility')) {
+    const vis = String(body?.answerVisibility || 'afterSubmit');
+    out.answerVisibility = ANSWER_VISIBILITY.includes(vis) ? vis : 'afterSubmit';
   }
   if (!partial || has('deadline')) out.deadline = optionalDate(body?.deadline, { name: '截止时间' });
   if (!partial || has('maxScore')) {
@@ -163,7 +173,7 @@ router.get(
       throw forbidden('只能查看自己发布的作业');
     }
 
-    res.json({ assignment: assignmentView(a, { viewer: req.user }) });
+    res.json({ assignment: assignmentView(a, { viewer: req.user, includeAnswer: true }) });
   }),
 );
 

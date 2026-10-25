@@ -311,6 +311,20 @@ function renderAuthPage() {
                     <label for="reg-password">密码</label>
                     <input class="input" id="reg-password" name="password" type="password" placeholder="至少 6 位" autocomplete="new-password" required />
                   </div>
+                  ${
+                    state.settings.selfClassSelect && (state.settings.classes || []).length
+                      ? `<div class="field">
+                           <label for="reg-class">选择班级</label>
+                           <select class="select" id="reg-class">
+                             <option value="">暂不选择（登录后可再设置）</option>
+                             ${state.settings.classes
+                               .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
+                               .join('')}
+                           </select>
+                           <div class="hint">选好班级后，才能看到该班级的作业</div>
+                         </div>`
+                      : ''
+                  }
                   <button class="btn btn-primary btn-block" type="submit" style="margin-top:6px">注册并登录</button>
                 </form>`
           }
@@ -588,13 +602,22 @@ async function viewStudentHome() {
             : ' · 尚未分班（只显示面向全体的作业）'
         }</div>
       </div>
-      <div class="filter-tabs">
-        ${tabs
-          .map(
-            ([key, label, count]) =>
-              `<button class="${filter === key ? 'active' : ''}" data-act="home-filter" data-filter="${key}">${label}<span class="count">${count}</span></button>`,
-          )
-          .join('')}
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div class="filter-tabs">
+          ${tabs
+            .map(
+              ([key, label, count]) =>
+                `<button class="${filter === key ? 'active' : ''}" data-act="home-filter" data-filter="${key}">${label}<span class="count">${count}</span></button>`,
+            )
+            .join('')}
+        </div>
+        ${
+          state.settings.selfClassSelect
+            ? `<button class="btn btn-ghost btn-sm" data-act="pick-class">${
+                state.user.classNames && state.user.classNames.length ? '切换班级' : '选择班级'
+              }</button>`
+            : ''
+        }
       </div>
     </div>
     <div class="grid grid-cards">${listHtml}</div>`;
@@ -694,8 +717,32 @@ async function viewAssignmentDetail(id) {
         <div class="kv-row"><span class="k">面向班级</span><span class="v">${a.classNames && a.classNames.length ? esc(a.classNames.join('、')) : '全部学生'}</span></div>
         <div class="kv-row"><span class="k">发布时间</span><span class="v">${fmtDate(a.createdAt)}</span></div>
         <div class="kv-row"><span class="k">逾期提交</span><span class="v">${a.allowLate ? '允许' : '不允许'}</span></div>
+        ${a.hasAnswer ? `<div class="kv-row"><span class="k">参考答案</span><span class="v">${esc(a.answerVisibilityText || '')}</span></div>` : ''}
       </div>
     </div>`;
+
+  const answerCard = a.answer
+    ? `<div class="card" id="answer-card" style="margin-top:16px">
+         <div class="card-head">
+           <h3>参考答案</h3>
+           <span class="badge approved">已解锁</span>
+         </div>
+         <div class="card-pad">
+           <div class="prose">${esc(a.answer)}</div>
+           <div class="hint" style="margin-top:10px">对照参考答案检查自己的答案，有疑问可以在课堂上向老师提问。</div>
+         </div>
+       </div>`
+    : a.answerLocked
+      ? `<div class="card" id="answer-locked" style="margin-top:16px">
+           <div class="card-pad" style="display:flex;gap:12px;align-items:flex-start">
+             <span style="font-size:18px;line-height:1.2">🔒</span>
+             <div>
+               <strong style="font-size:13.5px">本题设有参考答案</strong>
+               <div class="hint" style="margin-top:3px">${esc(a.answerVisibilityText || '')}，届时刷新本页即可查看。</div>
+             </div>
+           </div>
+         </div>`
+      : '';
 
   let resultCard = '';
   if (mine) {
@@ -775,6 +822,7 @@ async function viewAssignmentDetail(id) {
     <div class="detail-grid">
       <div>
         ${questionCard}
+        ${answerCard}
         <div class="card card-pad" style="margin-top:16px">
           ${submittedPreview}
           ${resultCard}
@@ -867,7 +915,7 @@ async function viewManage() {
           (a) => `
       <tr>
         <td>
-          <div class="cell-title">${esc(a.title)}</div>
+          <div class="cell-title">${esc(a.title)} ${a.hasAnswer ? '<span class="badge info" title="含参考答案">含答案</span>' : ''}</div>
           <div class="cell-sub">${esc(excerpt(a.content, 40)) || '（无文字说明）'}</div>
         </td>
         ${admin ? `<td class="cell-sub nowrap">${esc(a.creatorName || '—')}</td>` : ''}
@@ -1162,6 +1210,13 @@ async function viewSettings() {
             <div class="hint">关闭后，登录页不再显示注册入口，学生账号只能由管理员创建</div>
           </div>
           <div class="field">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text)">
+              <input type="checkbox" id="set-selfclass" ${settings.selfClassSelect === true ? 'checked' : ''} />
+              允许学生自选班级
+            </label>
+            <div class="hint">开启后：学生注册时可以选择班级，登录后也能自己切换；关闭则只能由管理员在「账号管理」里分配</div>
+          </div>
+          <div class="field">
             <label for="set-register-note">注册页提示语</label>
             <input class="input" id="set-register-note" value="${esc(settings.registerNote || '')}" placeholder="例如：请使用学号注册，注册后联系老师分班" maxlength="200" />
           </div>
@@ -1245,6 +1300,20 @@ async function openAssignmentModal(id) {
           <div class="hint">学生端会按原样换行展示，可配合附件上传题目图片或文档。</div>
         </div>
         <div class="field">
+          <label for="hw-answer">参考答案（可选）</label>
+          <textarea class="textarea" id="hw-answer" placeholder="填写标准答案或解题思路，学生按右侧设定的时机查看…" style="min-height:110px">${esc(a?.answer || '')}</textarea>
+        </div>
+        <div class="field">
+          <label for="hw-answer-vis">学生何时能看到参考答案</label>
+          <select class="select" id="hw-answer-vis">
+            <option value="afterSubmit" ${(a?.answerVisibility || 'afterSubmit') === 'afterSubmit' ? 'selected' : ''}>提交后即可查看（推荐）</option>
+            <option value="afterReview" ${a?.answerVisibility === 'afterReview' ? 'selected' : ''}>老师批阅后（通过或驳回后）</option>
+            <option value="afterDeadline" ${a?.answerVisibility === 'afterDeadline' ? 'selected' : ''}>截止时间之后</option>
+            <option value="never" ${a?.answerVisibility === 'never' ? 'selected' : ''}>不向学生显示（仅老师可见）</option>
+          </select>
+          <div class="hint">不填参考答案时，这一项自动忽略；你在批阅时始终能看到参考答案。</div>
+        </div>
+        <div class="field">
           <label>面向班级</label>
           ${classCheckboxes(a?.classIds || [])}
         </div>
@@ -1318,6 +1387,14 @@ async function openReviewModal(id) {
       <h4 style="font-size:13.5px;margin-bottom:8px">学生作答</h4>
       <div class="prose" style="font-size:13.5px;background:#fafbfe;border:1px solid var(--line);border-radius:10px;padding:14px;max-height:280px;overflow:auto">${esc(s.content) || '<span style="color:var(--muted)">（学生未填写文字答案，仅上传附件）</span>'}</div>
       ${filesHtml}
+      ${
+        s.assignment?.answer
+          ? `<div id="review-answer" style="margin-top:14px">
+               <h4 style="font-size:13.5px;margin-bottom:8px">参考答案 <span class="badge info">仅老师可见 · ${esc(s.assignment.answerVisibility === 'never' ? '不向学生显示' : '按设定时机向学生显示')}</span></h4>
+               <div class="prose" style="font-size:13.5px;background:#eef9f1;border:1px solid #bfe8cf;border-radius:10px;padding:14px;max-height:220px;overflow:auto">${esc(s.assignment.answer)}</div>
+             </div>`
+          : ''
+      }
       <div class="divider"></div>
       <div style="display:grid;grid-template-columns:130px 1fr;gap:14px">
         <div class="field" style="margin:0">
@@ -1451,6 +1528,50 @@ function openClassModal(id) {
     footer: `
       <button class="btn btn-ghost" data-act="close-modal">取消</button>
       <button class="btn btn-primary" data-act="save-class" data-id="${id || ''}">保存</button>`,
+  });
+}
+
+/** 学生自己选择 / 切换班级 */
+async function openClassPickerModal() {
+  let pub;
+  try {
+    pub = await api('/settings/public');
+  } catch {
+    pub = { selfClassSelect: false, classes: [] };
+  }
+  if (!pub.selfClassSelect) {
+    toast('管理员未开启「允许学生自选班级」，请联系老师分配', 'error');
+    return;
+  }
+  const classes = pub.classes || [];
+  if (!classes.length) {
+    toast('老师还没有创建班级，请稍后再试或联系老师', 'error');
+    return;
+  }
+  const current = (state.user.classIds || [])[0] || '';
+
+  openModal({
+    title: '选择你的班级',
+    body: `
+      <p class="hint" style="margin-bottom:14px">选择所在班级后，就能看到该班级老师发布的作业。</p>
+      <div style="display:grid;gap:10px">
+        ${classes
+          .map(
+            (c) => `
+          <label class="file-item" style="cursor:pointer;padding:12px 14px">
+            <input type="radio" name="class-pick" value="${c.id}" ${current === c.id ? 'checked' : ''} style="margin:0" />
+            <span class="fi-name" style="font-size:14px">${esc(c.name)}</span>
+          </label>`,
+          )
+          .join('')}
+        <label class="file-item" style="cursor:pointer;padding:12px 14px">
+          <input type="radio" name="class-pick" value="" ${current ? '' : 'checked'} style="margin:0" />
+          <span class="fi-name" style="font-size:14px;color:var(--muted)">暂不选择（只看面向全体学生的作业）</span>
+        </label>
+      </div>`,
+    footer: `
+      <button class="btn btn-ghost" data-act="close-modal">取消</button>
+      <button class="btn btn-primary" data-act="save-class-pick">确定</button>`,
   });
 }
 
@@ -1597,6 +1718,22 @@ document.addEventListener('click', async (e) => {
         openPasswordModal();
         break;
 
+      case 'pick-class':
+        await openClassPickerModal();
+        break;
+
+      case 'save-class-pick': {
+        const picked = document.querySelector('input[name="class-pick"]:checked');
+        const classId = picked ? picked.value : '';
+        const res = await api('/auth/class', { method: 'POST', body: { classId: classId || null } });
+        state.user = res.user;
+        state.settings.selfClassSelect = true;
+        closeModal();
+        toast(classId ? `已加入班级：${(res.user.classNames || []).join('、')}` : '已取消班级设置', 'success');
+        render();
+        break;
+      }
+
       case 'save-password': {
         const oldPassword = $('#pw-old').value;
         const newPassword = $('#pw-new').value;
@@ -1620,6 +1757,8 @@ document.addEventListener('click', async (e) => {
         const payload = {
           title: $('#hw-title').value,
           content: $('#hw-content').value,
+          answer: $('#hw-answer') ? $('#hw-answer').value : '',
+          answerVisibility: $('#hw-answer-vis') ? $('#hw-answer-vis').value : 'afterSubmit',
           deadline: $('#hw-deadline').value || null,
           maxScore: Number($('#hw-maxscore').value || 100),
           allowLate: $('#hw-allowlate').checked,
@@ -1817,6 +1956,7 @@ document.addEventListener('click', async (e) => {
         const body = {
           siteName: $('#set-site').value,
           registerEnabled: $('#set-register').checked,
+          selfClassSelect: $('#set-selfclass').checked,
           registerNote: $('#set-register-note').value,
         };
         const res = await api('/settings', { method: 'PATCH', body });
@@ -1860,11 +2000,13 @@ document.addEventListener('submit', async (e) => {
       const username = $('#reg-username').value.trim();
       const name = $('#reg-name').value.trim();
       const password = $('#reg-password').value;
+      const classEl = $('#reg-class');
+      const classId = classEl ? classEl.value || null : null;
       if (btn) btn.disabled = true;
-      const res = await api('/auth/register', { method: 'POST', body: { username, name, password } });
+      const res = await api('/auth/register', { method: 'POST', body: { username, name, password, classId } });
       state.user = res.user;
       state.authTab = 'login';
-      toast('注册成功，已自动登录', 'success');
+      toast(classId ? '注册成功，已加入班级' : '注册成功，已自动登录', 'success');
       location.hash = '#/home';
       await render();
     } else if (kind === 'submit-assignment') {
