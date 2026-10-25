@@ -9,3 +9,7 @@ server-test.err.log
 
 # Word / Office 打开文件时产生的临时锁文件
 ~$*
+
+# 线上实拍截图（验证用，不入库）
+shots/live/
+shots/remote/
